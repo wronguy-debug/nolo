@@ -1,3 +1,4 @@
+
 # nolo
 
 a fast http benchmarking tool written in go.
@@ -5,13 +6,13 @@ a fast http benchmarking tool written in go.
 ## install
 
 ```sh
-go install github.com/wronguy/nolo@latest
+go install github.com/wronguy-debug/nolo@latest
 ```
 
 or build from source:
 
 ```sh
-git clone https://github.com/wronguy/nolo
+git clone https://github.com/wronguy-debug/nolo
 cd nolo
 go build -o nolo .
 sudo mv nolo /usr/local/bin/
