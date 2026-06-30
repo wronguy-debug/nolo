@@ -68,3 +68,6 @@ nolo prints a live progress line during the run and a final summary with:
 - actual requests per second achieved
 - latency percentiles (min, p50, p90, p99, p999, max)
 - http status code distribution
+
+
+(time spend 3 hours and 36 mins of coding;d)
