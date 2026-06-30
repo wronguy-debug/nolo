@@ -40,7 +40,7 @@ func parseFlags(args []string) config {
 			c.concurrency = parseInt(args, &i, "-c")
 		case "-k", "--insecure":
 			c.insecure = true
-		case "-cr", "--cannonball":
+		case "-cr":
 			c.cannonball = true
 		default:
 			if !strings.HasPrefix(args[i], "-") && c.url == "" {
@@ -105,7 +105,7 @@ flags:
   -q, --rps <int>     requests per second (rate limit)
   -c, --concurrency <int>   number of concurrent workers (default: 10)
   -k, --insecure      skip tls certificate verification
-  -cr, --cannonball   fire all requests simultaneously (no rate limit)
+  -cr                 fire all requests simultaneously (no rate limit)
   -h, --help          show this help message
 
 examples:

@@ -38,7 +38,7 @@ nolo <url> -n <requests> -q <rps> [options]
 | `-q, --rps <int>` | requests per second rate limit (required) |
 | `-c, --concurrency <int>` | number of concurrent workers (default: 10) |
 | `-k, --insecure` | skip tls certificate verification |
-| `-cr, --cannonball` | fire all requests at once, no rate limiting |
+| `-cr` | fire all requests at once, no rate limiting |
 | `-h, --help` | show help message |
 
 ### examples
