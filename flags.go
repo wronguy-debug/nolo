@@ -12,6 +12,7 @@ type config struct {
 	rps         int64
 	concurrency int64
 	insecure    bool
+	cannonball  bool
 	help        bool
 }
 
@@ -39,6 +40,8 @@ func parseFlags(args []string) config {
 			c.concurrency = parseInt(args, &i, "-c")
 		case "-k", "--insecure":
 			c.insecure = true
+		case "-cr", "--cannonball":
+			c.cannonball = true
 		default:
 			if !strings.HasPrefix(args[i], "-") && c.url == "" {
 				c.url = args[i]
@@ -57,7 +60,7 @@ func parseFlags(args []string) config {
 	if c.total <= 0 {
 		needsHelp = true
 	}
-	if c.rps <= 0 {
+	if !c.cannonball && c.rps <= 0 {
 		needsHelp = true
 	}
 
@@ -102,12 +105,14 @@ flags:
   -q, --rps <int>     requests per second (rate limit)
   -c, --concurrency <int>   number of concurrent workers (default: 10)
   -k, --insecure      skip tls certificate verification
+  -cr, --cannonball   fire all requests simultaneously (no rate limit)
   -h, --help          show this help message
 
 examples:
   nolo https://example.com -n 1000 -q 100
   nolo localhost:8080 -n 500 -q 50 -c 20
   nolo https://api.example.com -n 10000 -q 500 -k
+  nolo https://api.example.com -n 500 -cr
 
 nolo sends https GET requests at a fixed rate and prints latency
 statistics and status code distribution to stdout.

@@ -56,10 +56,14 @@ func main() {
 	reqCh := make(chan int64, cfg.concurrency*4)
 
 	startTime := time.Now()
-	interval := time.Duration(float64(time.Second) / float64(cfg.rps))
 
-	if interval < time.Microsecond {
-		interval = time.Microsecond
+	cannonball := cfg.cannonball
+	var interval time.Duration
+	if !cannonball {
+		interval = time.Duration(float64(time.Second) / float64(cfg.rps))
+		if interval < time.Microsecond {
+			interval = time.Microsecond
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -119,29 +123,43 @@ func main() {
 		}()
 	}
 
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for seq := int64(0); seq < cfg.total; seq++ {
-			select {
-			case <-ctx.Done():
-				close(reqCh)
-				return
-			case <-ticker.C:
+	if cannonball {
+		go func() {
+			for seq := int64(0); seq < cfg.total; seq++ {
 				select {
+				case <-ctx.Done():
+					close(reqCh)
+					return
 				case reqCh <- seq:
-				default:
-					go func(s int64) {
-						select {
-						case reqCh <- s:
-						case <-ctx.Done():
-						}
-					}(seq)
 				}
 			}
-		}
-		close(reqCh)
-	}()
+			close(reqCh)
+		}()
+	} else {
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			for seq := int64(0); seq < cfg.total; seq++ {
+				select {
+				case <-ctx.Done():
+					close(reqCh)
+					return
+				case <-ticker.C:
+					select {
+					case reqCh <- seq:
+					default:
+						go func(s int64) {
+							select {
+							case reqCh <- s:
+							case <-ctx.Done():
+							}
+						}(seq)
+					}
+				}
+			}
+			close(reqCh)
+		}()
+	}
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()

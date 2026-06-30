@@ -38,6 +38,7 @@ nolo <url> -n <requests> -q <rps> [options]
 | `-q, --rps <int>` | requests per second rate limit (required) |
 | `-c, --concurrency <int>` | number of concurrent workers (default: 10) |
 | `-k, --insecure` | skip tls certificate verification |
+| `-cr, --cannonball` | fire all requests at once, no rate limiting |
 | `-h, --help` | show help message |
 
 ### examples
@@ -52,6 +53,10 @@ nolo localhost:8080 -n 500 -q 50 -c 20
 
 ```sh
 nolo https://api.example.com -n 10000 -q 500 -k
+```
+
+```sh
+nolo https://api.example.com -n 500 -cr
 ```
 
 ## output
