@@ -9,6 +9,12 @@ a fast http benchmarking tool written in go.
 go install github.com/wronguy-debug/nolo@latest
 ```
 
+if `nolo` is not found after install, add go's bin directory to your path:
+
+```sh
+fish_add_path ~/go/bin
+```
+
 or build from source:
 
 ```sh
