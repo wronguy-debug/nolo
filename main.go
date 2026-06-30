@@ -22,8 +22,8 @@ func main() {
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.insecure,
 		},
-		MaxIdleConnsPerHost:   int(cfg.concurrency),
-		MaxConnsPerHost:       int(cfg.concurrency),
+		MaxIdleConnsPerHost:   0,
+		MaxConnsPerHost:       0,
 		DisableCompression:    true,
 		DisableKeepAlives:     true,
 		ResponseHeaderTimeout: 30 * time.Second,
@@ -53,8 +53,6 @@ func main() {
 	latencies := make([]int64, 0, cfg.total)
 	latMu := &sync.Mutex{}
 
-	reqCh := make(chan int64, cfg.concurrency*4)
-
 	startTime := time.Now()
 
 	cannonball := cfg.cannonball
@@ -69,13 +67,10 @@ func main() {
 	var wg sync.WaitGroup
 
 	if cannonball {
-		sem := make(chan struct{}, cfg.total)
 		for i := int64(0); i < cfg.total; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
 
 				select {
 				case <-ctx.Done():
@@ -125,85 +120,71 @@ func main() {
 			}()
 		}
 	} else {
-		for i := int64(0); i < cfg.concurrency; i++ {
+		sem := make(chan struct{}, cfg.concurrency)
+		remaining := cfg.total
+
+		for seq := int64(0); seq < cfg.total; seq++ {
+			select {
+			case <-ctx.Done():
+				break
+			default:
+			}
+
+			sem <- struct{}{}
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				for seq := range reqCh {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-					}
+				defer func() { <-sem }()
 
-					reqStart := time.Now()
-					req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.url, nil)
-					if err != nil {
-						fail.Add(1)
-						sent.Add(1)
-						continue
-					}
-					req.Header.Set("User-Agent", "nolo/1.0.0")
-					req.Header.Set("Accept", "*/*")
-					req.Header.Set("Connection", "close")
-
-					resp, err := client.Do(req)
-					elapsed := time.Since(reqStart).Microseconds()
-					totalLatency.Add(elapsed)
+				reqStart := time.Now()
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.url, nil)
+				if err != nil {
+					fail.Add(1)
 					sent.Add(1)
+					return
+				}
+				req.Header.Set("User-Agent", "nolo/1.0.0")
+				req.Header.Set("Accept", "*/*")
+				req.Header.Set("Connection", "close")
 
-					latMu.Lock()
-					latencies = append(latencies, elapsed)
-					latMu.Unlock()
+				resp, err := client.Do(req)
+				elapsed := time.Since(reqStart).Microseconds()
+				totalLatency.Add(elapsed)
+				sent.Add(1)
 
-					if err != nil {
-						fail.Add(1)
-						continue
-					}
+				latMu.Lock()
+				latencies = append(latencies, elapsed)
+				latMu.Unlock()
 
-					statusBucket := resp.StatusCode / 100
-					key := fmt.Sprintf("%dxx", statusBucket)
-					if statusBucket == 0 || statusBucket > 5 {
-						key = fmt.Sprintf("%d", resp.StatusCode)
-					}
-					val, _ := statusCounts.LoadOrStore(key, new(atomic.Int64))
-					val.(*atomic.Int64).Add(1)
-					resp.Body.Close()
+				if err != nil {
+					fail.Add(1)
+					return
+				}
 
-					if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-						success.Add(1)
-					} else {
-						fail.Add(1)
-					}
+				statusBucket := resp.StatusCode / 100
+				key := fmt.Sprintf("%dxx", statusBucket)
+				if statusBucket == 0 || statusBucket > 5 {
+					key = fmt.Sprintf("%d", resp.StatusCode)
+				}
+				val, _ := statusCounts.LoadOrStore(key, new(atomic.Int64))
+				val.(*atomic.Int64).Add(1)
+				resp.Body.Close()
 
-					_ = seq
+				if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+					success.Add(1)
+				} else {
+					fail.Add(1)
 				}
 			}()
-		}
 
-		go func() {
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			for seq := int64(0); seq < cfg.total; seq++ {
+			if interval > 0 && seq < cfg.total-1 {
 				select {
 				case <-ctx.Done():
-					close(reqCh)
-					return
-				case <-ticker.C:
-					select {
-					case reqCh <- seq:
-					default:
-						go func(s int64) {
-							select {
-							case reqCh <- s:
-							case <-ctx.Done():
-							}
-						}(seq)
-					}
+				case <-time.After(interval):
 				}
 			}
-			close(reqCh)
-		}()
+		}
+		_ = remaining
 	}
 
 	ticker := time.NewTicker(500 * time.Millisecond)
