@@ -95,14 +95,14 @@ func printHelp() {
 	fmt.Print(`nolo — http benchmarking tool
 
 usage:
-  nolo <url> -n <requests> -q <rps> [options]
+  nolo <url> -n <requests> -q <rms> [options]
 
 arguments:
   <url>               target url (http[s]:// prefix auto-added if missing)
 
 flags:
   -n <int>            total number of requests to send
-  -q, --rps <int>     requests per second (rate limit)
+  -q, --rms <int>     requests per millisecond (rate limit)
   -c, --concurrency <int>   number of concurrent workers (default: 10)
   -k, --insecure      skip tls certificate verification
   -cr                 fire all requests simultaneously (no rate limit)

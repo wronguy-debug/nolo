@@ -27,7 +27,7 @@ sudo mv nolo /usr/local/bin/
 ## usage
 
 ```
-nolo <url> -n <requests> -q <rps> [options]
+nolo <url> -n <requests> -q <rms> [options]
 ```
 
 ### flags
@@ -35,7 +35,7 @@ nolo <url> -n <requests> -q <rps> [options]
 | flag | description |
 |------|-------------|
 | `-n <int>` | total number of requests to send (required) |
-| `-q, --rps <int>` | requests per second rate limit (required) |
+| `-q, --rms <int>` | requests per millisecond rate limit |
 | `-c, --concurrency <int>` | number of concurrent workers (default: 10) |
 | `-k, --insecure` | skip tls certificate verification |
 | `-cr` | fire all requests at once, no rate limiting |
@@ -56,7 +56,7 @@ nolo https://api.example.com -n 10000 -q 500 -k
 ```
 
 ```sh
-nolo https://api.example.com -n 500 -cr
+nolo https://example.com -n 500 -cr
 ```
 
 ## output

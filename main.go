@@ -60,18 +60,23 @@ func main() {
 	cannonball := cfg.cannonball
 	var interval time.Duration
 	if !cannonball {
-		interval = time.Duration(float64(time.Second) / float64(cfg.rps))
+		interval = time.Duration(float64(time.Millisecond) / float64(cfg.rps))
 		if interval < time.Microsecond {
 			interval = time.Microsecond
 		}
 	}
 
 	var wg sync.WaitGroup
-	for i := int64(0); i < cfg.concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for seq := range reqCh {
+
+	if cannonball {
+		sem := make(chan struct{}, cfg.total)
+		for i := int64(0); i < cfg.total; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
 				select {
 				case <-ctx.Done():
 					return
@@ -83,7 +88,7 @@ func main() {
 				if err != nil {
 					fail.Add(1)
 					sent.Add(1)
-					continue
+					return
 				}
 				req.Header.Set("User-Agent", "nolo/1.0.0")
 				req.Header.Set("Accept", "*/*")
@@ -100,7 +105,7 @@ func main() {
 
 				if err != nil {
 					fail.Add(1)
-					continue
+					return
 				}
 
 				statusBucket := resp.StatusCode / 100
@@ -117,25 +122,65 @@ func main() {
 				} else {
 					fail.Add(1)
 				}
-
-				_ = seq
-			}
-		}()
-	}
-
-	if cannonball {
-		go func() {
-			for seq := int64(0); seq < cfg.total; seq++ {
-				select {
-				case <-ctx.Done():
-					close(reqCh)
-					return
-				case reqCh <- seq:
-				}
-			}
-			close(reqCh)
-		}()
+			}()
+		}
 	} else {
+		for i := int64(0); i < cfg.concurrency; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for seq := range reqCh {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+
+					reqStart := time.Now()
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.url, nil)
+					if err != nil {
+						fail.Add(1)
+						sent.Add(1)
+						continue
+					}
+					req.Header.Set("User-Agent", "nolo/1.0.0")
+					req.Header.Set("Accept", "*/*")
+					req.Header.Set("Connection", "close")
+
+					resp, err := client.Do(req)
+					elapsed := time.Since(reqStart).Microseconds()
+					totalLatency.Add(elapsed)
+					sent.Add(1)
+
+					latMu.Lock()
+					latencies = append(latencies, elapsed)
+					latMu.Unlock()
+
+					if err != nil {
+						fail.Add(1)
+						continue
+					}
+
+					statusBucket := resp.StatusCode / 100
+					key := fmt.Sprintf("%dxx", statusBucket)
+					if statusBucket == 0 || statusBucket > 5 {
+						key = fmt.Sprintf("%d", resp.StatusCode)
+					}
+					val, _ := statusCounts.LoadOrStore(key, new(atomic.Int64))
+					val.(*atomic.Int64).Add(1)
+					resp.Body.Close()
+
+					if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+						success.Add(1)
+					} else {
+						fail.Add(1)
+					}
+
+					_ = seq
+				}
+			}()
+		}
+
 		go func() {
 			ticker := time.NewTicker(interval)
 			defer ticker.Stop()
